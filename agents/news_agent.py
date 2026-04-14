@@ -80,7 +80,7 @@ BRIEF FORMAT (use exactly this structure):
 *{{One sentence — the single most important thing Raph should be thinking about today.}}*
 """
 
-NEWS_USER_PROMPT = """Today is {date}. 
+NEWS_USER_PROMPT = """Today is {date}.
 
 Search the web extensively and produce Raph's daily intelligence brief.
 Run at least 2-3 searches per topic area to find the best stories from the last 24-48 hours.
@@ -108,7 +108,7 @@ def build_news_notion_blocks(brief_text: str, headline: str) -> list:
     return blocks
 
 
-# ─── EMAIL FORMATTER ──────────────────────────────────────────────────────────
+# ─── EMAIL FORMATTER ─────────────────────────────────────────────────────────
 
 def brief_to_html(brief_text: str, date_str: str) -> str:
     """Convert the plain-text brief to a clean HTML email."""
@@ -162,7 +162,7 @@ def run():
     )
     log.info(f"Brief generated — {len(brief_text)} chars")
 
-    # Extract headline (second line, between * *)
+    # Extract headline
     lines = [l.strip() for l in brief_text.split("\n") if l.strip()]
     headline = next(
         (l.strip("*") for l in lines if l.startswith("*") and not l.startswith("**")),
