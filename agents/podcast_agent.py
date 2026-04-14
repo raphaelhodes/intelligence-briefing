@@ -361,6 +361,7 @@ def build_podcast_email(analyses: list, date_str: str) -> str:
 # ─── MAIN ────────────────────────────────────────────────────────────────────
 
 def run():
+    import time
     date_str = datetime.now().strftime("%A, %d %B %Y")
     log.info(f"Podcast agent starting — {date_str}")
 
@@ -370,6 +371,7 @@ def run():
         log.info(f"Checking {source['name']}...")
         episodes = get_new_episodes(source)
         all_episodes.extend(episodes)
+        time.sleep(10)  # Pause between sources to avoid rate limits
 
     log.info(f"Total new episodes found: {len(all_episodes)}")
 
@@ -384,6 +386,7 @@ def run():
         transcript = get_transcript(episode)
         analysis = analyse_episode(episode, transcript)
         analyses.append({"episode": episode, "analysis": analysis})
+        time.sleep(15)  # Pause between episode analyses
 
     # 3. Post to Notion database
     db_id = os.environ.get("NOTION_PODCAST_DB_ID", "")
