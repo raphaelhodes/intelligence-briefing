@@ -21,7 +21,7 @@ from dateutil import parser as dateparser
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import RAPH_CONTEXT, PODCAST_SOURCES, DELIVERY, TRANSCRIPT_SOURCES
-from utils.delivery import call_claude, post_to_notion, build_notion_blocks, send_email
+from utils.delivery import call_claude, post_to_notion_database, ensure_database_has_date_property, build_notion_blocks, send_email
 
 log = logging.getLogger(__name__)
 
@@ -419,13 +419,19 @@ def run():
         analyses.append({"episode": episode, "analysis": analysis})
         log.info(f"Analysis complete for: {episode['title']}")
 
-    # 3. Post to Notion
-    notion_page_id = os.environ.get("NOTION_PODCAST_PAGE_ID", "")
-    if notion_page_id and analyses:
+    # 3. Post to Notion database
+    db_id = os.environ.get("NOTION_PODCAST_DB_ID", "")
+    if db_id and analyses:
         try:
+            ensure_database_has_date_property(db_id)
             notion_blocks = build_podcast_notion_blocks(analyses)
-            notion_url = post_to_notion(notion_page_id, "Podcast Intelligence Brief", notion_blocks)
-            log.info(f"Notion page created: {notion_url}")
+            notion_url = post_to_notion_database(
+                database_id=db_id,
+                title="Podcast Intelligence Brief",
+                properties={},
+                content_blocks=notion_blocks,
+            )
+            log.info(f"Notion entry created: {notion_url}")
         except Exception as e:
             log.error(f"Notion delivery failed: {e}")
 
