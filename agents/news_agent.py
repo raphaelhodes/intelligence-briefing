@@ -11,7 +11,7 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import RAPH_CONTEXT, TOPIC_AREAS, DELIVERY
-from utils.delivery import call_claude, post_to_notion, build_notion_blocks, send_email
+from utils.delivery import call_claude, post_to_notion_database, ensure_database_has_date_property, build_notion_blocks, send_email
 
 log = logging.getLogger(__name__)
 
@@ -169,17 +169,23 @@ def run():
         "Today's intelligence brief"
     )
 
-    # 2. Post to Notion
-    notion_page_id = os.environ.get("NOTION_NEWS_PAGE_ID", "")
-    if notion_page_id:
+    # 2. Post to Notion database
+    db_id = os.environ.get("NOTION_NEWS_DB_ID", "")
+    if db_id:
         try:
+            ensure_database_has_date_property(db_id)
             notion_blocks = build_news_notion_blocks(brief_text, headline)
-            notion_url = post_to_notion(notion_page_id, "News Intelligence Brief", notion_blocks)
-            log.info(f"Notion page created: {notion_url}")
+            notion_url = post_to_notion_database(
+                database_id=db_id,
+                title="News Intelligence Brief",
+                properties={},
+                content_blocks=notion_blocks,
+            )
+            log.info(f"Notion entry created: {notion_url}")
         except Exception as e:
             log.error(f"Notion delivery failed: {e}")
     else:
-        log.warning("NOTION_NEWS_PAGE_ID not set — skipping Notion delivery")
+        log.warning("NOTION_NEWS_DB_ID not set — skipping Notion delivery")
 
     # 3. Send email
     try:
