@@ -1,15 +1,14 @@
 """
 Shared utilities for Raph's Intel System.
-Handles: Claude API calls, Notion delivery, Gmail delivery.
+Handles: Claude API calls, Notion database delivery, Gmail delivery.
 """
 
 import os
-import json
 import smtplib
 import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime, timezone
+from datetime import datetime
 import anthropic
 from notion_client import Client as NotionClient
 
@@ -35,19 +34,14 @@ def call_claude(system_prompt: str, user_prompt: str, max_tokens: int = 4096, us
 
     response = client.messages.create(**kwargs)
 
-    # Extract text from response (may include tool_use blocks if web search used)
     text_parts = [block.text for block in response.content if hasattr(block, "text")]
     return "\n".join(text_parts).strip()
 
 
-# ─── NOTION DELIVERY ─────────────────────────────────────────────────────────
+# ─── NOTION DATABASE DELIVERY ────────────────────────────────────────────────
 
 def post_to_notion_database(database_id: str, title: str, properties: dict, content_blocks: list) -> str:
-    """
-    Create a new entry in a Notion database.
-    properties: dict of additional Notion properties beyond title e.g. Date, Tags
-    content_blocks: list of Notion block objects for the page body
-    """
+    """Create a new entry in a Notion database."""
     notion = NotionClient(auth=os.environ["NOTION_API_KEY"])
 
     today = datetime.now().strftime("%d %b %Y")
@@ -90,16 +84,12 @@ def ensure_database_has_date_property(database_id: str) -> None:
 
 
 def build_notion_blocks(brief_text: str) -> list:
-    """
-    Convert markdown-ish brief text into Notion block objects.
-    Handles: h1 (#), h2 (##), h3 (###), bold (**), paragraphs, dividers (---).
-    """
+    """Convert markdown brief text into Notion block objects."""
     blocks = []
     for line in brief_text.split("\n"):
         line = line.strip()
         if not line:
             continue
-
         if line.startswith("# "):
             blocks.append(_heading(line[2:], 1))
         elif line.startswith("## "):
@@ -109,11 +99,9 @@ def build_notion_blocks(brief_text: str) -> list:
         elif line == "---":
             blocks.append({"object": "block", "type": "divider", "divider": {}})
         elif line.startswith("**") and line.endswith("**") and line.count("**") == 2:
-            # Bold-only line → treat as callout/label
             blocks.append(_paragraph(line.replace("**", ""), bold=True))
         else:
             blocks.append(_paragraph(line))
-
     return blocks
 
 
@@ -154,7 +142,7 @@ def send_email(subject: str, html_body: str, to_address: str) -> None:
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"] = f"Raph's Intel System <{gmail_address}>"
+    msg["From"] = f"Intelligence Briefing <{gmail_address}>"
     msg["To"] = to_address
     msg.attach(MIMEText(html_body, "html"))
 
@@ -163,35 +151,3 @@ def send_email(subject: str, html_body: str, to_address: str) -> None:
         server.sendmail(gmail_address, to_address, msg.as_string())
 
     log.info(f"Email sent to {to_address}: {subject}")
-
-
-def format_html_email(title: str, date_str: str, sections: list[dict]) -> str:
-    """
-    Build a clean HTML email from structured section dicts.
-    Each section: {"heading": str, "body": str, "insight": str (optional)}
-    """
-    section_html = ""
-    for s in sections:
-        insight_block = ""
-        if s.get("insight"):
-            insight_block = f"""
-            <div style="background:#f0f7f0;border-left:4px solid #2d7a2d;padding:12px 16px;margin-top:12px;border-radius:0 4px 4px 0;">
-              <strong>Section insight:</strong> {s['insight']}
-            </div>"""
-        section_html += f"""
-        <div style="margin-bottom:28px;">
-          <h2 style="font-size:17px;border-bottom:1px solid #ddd;padding-bottom:6px;">{s['heading']}</h2>
-          <div style="font-size:14px;line-height:1.7;">{s['body']}{insight_block}</div>
-        </div>"""
-
-    return f"""<!DOCTYPE html>
-<html>
-<body style="font-family:Georgia,serif;max-width:680px;margin:0 auto;color:#1a1a1a;line-height:1.7;padding:20px;">
-  <div style="border-bottom:3px solid #1a1a1a;padding-bottom:16px;margin-bottom:24px;">
-    <h1 style="font-size:22px;margin:0 0 4px;">{title}</h1>
-    <p style="margin:0;color:#666;font-size:14px;">{date_str}</p>
-  </div>
-  {section_html}
-  <p style="margin-top:24px;font-size:11px;color:#999;">Raph's Daily Intelligence Brief — {date_str}</p>
-</body>
-</html>"""
