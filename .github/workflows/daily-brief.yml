@@ -32,7 +32,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
-          NOTION_NEWS_PAGE_ID: ${{ secrets.NOTION_NEWS_PAGE_ID }}
+          NOTION_NEWS_DB_ID: ${{ secrets.NOTION_NEWS_DB_ID }}
           GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         run: python agents/news_agent.py
@@ -53,3 +53,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_PODCAST_DB_ID: ${{ secrets.NOTION_PODCAST_DB_ID }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: python agents/podcast_agent.py
