@@ -42,25 +42,51 @@ def call_claude(system_prompt: str, user_prompt: str, max_tokens: int = 4096, us
 
 # ─── NOTION DELIVERY ─────────────────────────────────────────────────────────
 
-def post_to_notion(page_id: str, title: str, content_blocks: list) -> str:
-    """Create a new child page under the specified Notion page."""
+def post_to_notion_database(database_id: str, title: str, properties: dict, content_blocks: list) -> str:
+    """
+    Create a new entry in a Notion database.
+    properties: dict of additional Notion properties beyond title e.g. Date, Tags
+    content_blocks: list of Notion block objects for the page body
+    """
     notion = NotionClient(auth=os.environ["NOTION_API_KEY"])
 
     today = datetime.now().strftime("%d %b %Y")
     page_title = f"{title} — {today}"
 
-    new_page = notion.pages.create(
-        parent={"page_id": page_id},
-        properties={
-            "title": {
-                "title": [{"type": "text", "text": {"content": page_title}}]
-            }
+    notion_properties = {
+        "Name": {
+            "title": [{"type": "text", "text": {"content": page_title}}]
         },
-        children=content_blocks,
+        "Date": {
+            "date": {"start": datetime.now().strftime("%Y-%m-%d")}
+        }
+    }
+    notion_properties.update(properties)
+
+    new_page = notion.pages.create(
+        parent={"database_id": database_id},
+        properties=notion_properties,
+        children=content_blocks[:100],
     )
 
-    log.info(f"Notion page created: {page_title} ({new_page['id']})")
-    return new_page["url"]
+    log.info(f"Notion database entry created: {page_title} ({new_page['id']})")
+    return new_page.get("url", "")
+
+
+def ensure_database_has_date_property(database_id: str) -> None:
+    """Check if the Notion database has a Date property. If not, add it."""
+    notion = NotionClient(auth=os.environ["NOTION_API_KEY"])
+    try:
+        db = notion.databases.retrieve(database_id=database_id)
+        properties = db.get("properties", {})
+        if "Date" not in properties:
+            notion.databases.update(
+                database_id=database_id,
+                properties={"Date": {"date": {}}}
+            )
+            log.info(f"Added Date property to database {database_id}")
+    except Exception as e:
+        log.warning(f"Could not check/update database properties: {e}")
 
 
 def build_notion_blocks(brief_text: str) -> list:
