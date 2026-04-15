@@ -34,7 +34,7 @@ def call_claude(system_prompt: str, user_prompt: str, max_tokens: int = 4096, us
 
     response = client.messages.create(**kwargs)
 
-    text_parts = [block.text for block in response.content if hasattr(block, "text")]
+    text_parts = [block.text for block in response.content if hasattr(block, "text") and block.text is not None]
     return "\n".join(text_parts).strip()
 
 
