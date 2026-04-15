@@ -246,3 +246,116 @@ def build_podcast_notion_blocks(analyses: list) -> list:
             "callout": {
                 "rich_text": [{"type": "text", "text": {
                     "content": f"{len(analyses)} new episode(s) analysed — {datetime.now().strftime('%d %b %Y')}"
+                }}],
+                "icon": {"emoji": "🎙️"},
+                "color": "blue_background",
+            }
+        }
+    ]
+    for item in analyses:
+        blocks += build_notion_blocks(item["analysis"])
+        blocks.append({"object": "block", "type": "divider", "divider": {}})
+    return blocks
+
+
+def build_podcast_email(analyses: list, date_str: str) -> str:
+    """Build HTML email for podcast brief."""
+    episode_sections = ""
+    for item in analyses:
+        ep = item["episode"]
+        analysis_html = ""
+        for line in item["analysis"].split("\n"):
+            line = line.strip()
+            if not line:
+                analysis_html += "<br>"
+            elif line.startswith("# "):
+                analysis_html += f'<h2 style="font-size:18px;margin:0 0 4px;">{line[2:]}</h2>'
+            elif line.startswith("## "):
+                analysis_html += f'<h3 style="font-size:15px;margin-top:20px;margin-bottom:4px;color:#333;">{line[3:]}</h3>'
+            elif line.startswith("**") and line.endswith("**"):
+                analysis_html += f'<p style="font-weight:bold;margin:12px 0 2px;">{line.strip("*")}</p>'
+            elif line.startswith("*") and line.endswith("*"):
+                analysis_html += f'<p style="font-style:italic;background:#f5f5f5;padding:10px 14px;border-radius:4px;">{line.strip("*")}</p>'
+            else:
+                analysis_html += f'<p style="font-size:14px;line-height:1.7;margin:4px 0;">{line}</p>'
+
+        episode_sections += f"""
+        <div style="border:1px solid #e0e0e0;border-radius:8px;padding:20px;margin-bottom:24px;">
+          <p style="color:#666;font-size:13px;margin:0 0 16px;">{ep['podcast']} — {ep['published']}</p>
+          {analysis_html}
+        </div>"""
+
+    return f"""<!DOCTYPE html>
+<html>
+<body style="font-family:Georgia,serif;max-width:680px;margin:0 auto;color:#1a1a1a;padding:20px;">
+  <div style="border-bottom:3px solid #1a1a1a;padding-bottom:16px;margin-bottom:24px;">
+    <h1 style="font-size:22px;margin:0 0 4px;">Podcast Intelligence Brief</h1>
+    <p style="margin:0;color:#666;font-size:14px;">{date_str} — {len(analyses)} new episode(s)</p>
+  </div>
+  {episode_sections}
+  <p style="margin-top:24px;font-size:11px;color:#999;">Raph's Podcast Intelligence — {date_str}</p>
+</body>
+</html>"""
+
+
+# ─── MAIN ────────────────────────────────────────────────────────────────────
+
+def run():
+    date_str = datetime.now().strftime("%A, %d %B %Y")
+    log.info(f"Podcast agent starting — {date_str}")
+
+    # 1. Check all RSS feeds for new episodes (no Claude calls here)
+    all_episodes = []
+    for source in PODCAST_SOURCES:
+        log.info(f"Checking RSS: {source['name']}...")
+        episodes = get_new_episodes(source)
+        all_episodes.extend(episodes)
+
+    log.info(f"Total new episodes found: {len(all_episodes)}")
+
+    if not all_episodes:
+        log.info("No new episodes in the last 36 hours. Skipping delivery.")
+        return
+
+    # 2. Fetch transcripts and analyse each episode
+    # Claude only called here — one call per episode found
+    analyses = []
+    for episode in all_episodes:
+        log.info(f"Analysing: {episode['podcast']} — {episode['title']}")
+        transcript = get_transcript(episode)
+        analysis = analyse_episode(episode, transcript)
+        analyses.append({"episode": episode, "analysis": analysis})
+        time.sleep(15)  # Pause between episodes to respect rate limits
+
+    # 3. Post to Notion database
+    db_id = os.environ.get("NOTION_PODCAST_DB_ID", "")
+    if db_id and analyses:
+        try:
+            ensure_database_has_date_property(db_id)
+            notion_blocks = build_podcast_notion_blocks(analyses)
+            notion_url = post_to_notion_database(
+                database_id=db_id,
+                title="Podcast Intelligence Brief",
+                properties={},
+                content_blocks=notion_blocks,
+            )
+            log.info(f"Notion entry created: {notion_url}")
+        except Exception as e:
+            log.error(f"Notion delivery failed: {e}")
+
+    # 4. Send email
+    try:
+        html = build_podcast_email(analyses, date_str)
+        send_email(
+            subject=f"Podcast Intelligence Brief — {date_str} ({len(analyses)} episodes)",
+            html_body=html,
+            to_address=DELIVERY["email_to"],
+        )
+    except Exception as e:
+        log.error(f"Email delivery failed: {e}")
+
+    log.info(f"Podcast agent complete — {len(analyses)} episodes processed.")
+
+
+if __name__ == "__main__":
+    run()
